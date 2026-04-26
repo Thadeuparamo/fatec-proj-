@@ -1,0 +1,6 @@
+﻿import { RouterProvider } from "react-router";
+import { router } from "./routes";
+import { useEffect, Suspense } from "react";
+import { clearSessionUser, getSessionUser } from "./services/auth"; export default function App() { useEffect(() => { const controller = new AbortController(); const timeoutId = window.setTimeout(() => controller.abort(), 3000); const validateSession = async () => { try { const res = await fetch("/api/categoria", { signal: controller.signal }); if (!res.ok) throw new Error("Backend indisponÃ­vel"); const storedUser = getSessionUser(); if (!storedUser?.id) return; const userRes = await fetch(`/api/usuario/${storedUser.id}`, { signal: controller.signal }); if (!userRes.ok) { clearSessionUser(); const isProtected = window.location.pathname.startsWith("/dashboard") || window.location.pathname.startsWith("/prestador"); if (isProtected) window.location.replace("/"); } } catch { const isProtected = window.location.pathname.startsWith("/dashboard") || window.location.pathname.startsWith("/prestador"); if (isProtected) { clearSessionUser(); window.location.replace("/"); } } finally { window.clearTimeout(timeoutId); } }; void validateSession(); return () => { window.clearTimeout(timeoutId); controller.abort(); }; }, []); return ( <Suspense fallback={null}> <RouterProvider router={router} /> </Suspense> );
+}
+

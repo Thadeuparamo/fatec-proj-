@@ -32,6 +32,11 @@ import jakarta.persistence.UniqueConstraint;
 )
 @Inheritance(strategy = InheritanceType.JOINED)
 public class Usuario {
+    public static final int STATUS_PRESTADOR = 1;
+    public static final int STATUS_CLIENTE = 2;
+    public static final int STATUS_ADMIN = 10;
+    public static final int STATUS_ADMIN_PRINCIPAL = 11;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -51,6 +56,9 @@ public class Usuario {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private TipoUsuario tipo;
+
+    @Column(name = "status")
+    private Integer status;
 
     @Column(nullable = false, length = 14)
     private String cpf;
@@ -143,6 +151,7 @@ public class Usuario {
 
     public void setTipo(String tipo) {
         this.tipo = TipoUsuario.from(tipo);
+        this.status = inferStatusFromTipo(this.tipo);
     }
 
     public TipoUsuario getTipoEnum() {
@@ -151,6 +160,51 @@ public class Usuario {
 
     public void setTipoEnum(TipoUsuario tipo) {
         this.tipo = tipo;
+        this.status = inferStatusFromTipo(tipo);
+    }
+
+    public Integer getStatus() {
+        if (status == null) {
+            status = inferStatusFromTipo(tipo);
+        }
+        return status;
+    }
+
+    public void setStatus(Integer status) {
+        this.status = status;
+        if (status == null) {
+            return;
+        }
+
+        if (status == STATUS_PRESTADOR) {
+            this.tipo = TipoUsuario.PRESTADOR;
+        } else if (status == STATUS_CLIENTE) {
+            this.tipo = TipoUsuario.CLIENTE;
+        } else if (status == STATUS_ADMIN || status == STATUS_ADMIN_PRINCIPAL) {
+            this.tipo = TipoUsuario.ADMIN;
+        }
+    }
+
+    public boolean isAdmin() {
+        Integer resolvedStatus = getStatus();
+        return resolvedStatus != null && resolvedStatus >= STATUS_ADMIN;
+    }
+
+    public boolean isAdminPrincipal() {
+        Integer resolvedStatus = getStatus();
+        return resolvedStatus != null && resolvedStatus == STATUS_ADMIN_PRINCIPAL;
+    }
+
+    private Integer inferStatusFromTipo(TipoUsuario tipo) {
+        if (tipo == null) {
+            return STATUS_CLIENTE;
+        }
+
+        return switch (tipo) {
+            case PRESTADOR -> STATUS_PRESTADOR;
+            case CLIENTE -> STATUS_CLIENTE;
+            case ADMIN -> STATUS_ADMIN;
+        };
     }
 
     public String getCpf() {
@@ -220,6 +274,19 @@ public class Usuario {
     @PrePersist
     @PreUpdate
     private void normalize() {
+        if (status == null) {
+            status = inferStatusFromTipo(tipo);
+        }
+        if (tipo == null && status != null) {
+            if (status == STATUS_PRESTADOR) {
+                tipo = TipoUsuario.PRESTADOR;
+            } else if (status == STATUS_CLIENTE) {
+                tipo = TipoUsuario.CLIENTE;
+            } else {
+                tipo = TipoUsuario.ADMIN;
+            }
+        }
+
         if (email != null) {
             email = email.trim().toLowerCase();
         }

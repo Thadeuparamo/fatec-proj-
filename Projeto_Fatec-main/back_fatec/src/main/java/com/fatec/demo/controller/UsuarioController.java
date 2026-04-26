@@ -130,6 +130,9 @@ public class UsuarioController {
             u.setSenha(null);
             logger.info("Login bem-sucedido para: " + u.getEmail());
             return ResponseEntity.ok(u);
+        } catch (IllegalArgumentException e) {
+            logger.log(Level.WARNING, "Erro de validação ao fazer login", e);
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Erro ao fazer login", e);
             return ResponseEntity.status(500).body("Erro ao fazer login: " + e.getMessage());

@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { Briefcase, Camera, User } from "lucide-react";
+import { AlertTriangle, Briefcase, Camera, User } from "lucide-react";
 
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -98,6 +98,9 @@ function getPasswordStrength(password: string): { label: string; tone: string } 
 
 function mapApiError(message: string): string {
   const normalized = message.toLowerCase();
+  if (normalized.includes("bloqueado") || normalized.includes("contate o administrador")) {
+    return "Usuario bloqueado. Contate o administrador para reativar sua conta.";
+  }
   if (normalized.includes("cpf ja cadastrado") || normalized.includes("cpf já cadastrado")) {
     return "CPF ja cadastrado. Tente entrar ou use outro CPF.";
   }
@@ -169,6 +172,7 @@ export function Access() {
   const passwordStrength = getPasswordStrength(registerData.senha);
   const cfg = roleConfig[role];
   const Icon = cfg.icon;
+  const isBlockedError = error.toLowerCase().includes("bloqueado");
 
   useEffect(() => {
     setRole(roleFromUrl);
@@ -348,7 +352,26 @@ export function Access() {
           </div>
 
           <div aria-live="polite" className="space-y-2">
-            {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{error}</p>}
+            {error && !isBlockedError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{error}</p>}
+            {error && isBlockedError && (
+              <div className="rounded-xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-full bg-amber-100 p-2 text-amber-700">
+                    <AlertTriangle size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-amber-900">Conta temporariamente bloqueada</p>
+                    <p className="mt-1 text-sm text-amber-800">{error}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                      <Link to="/centro-ajuda" className="rounded-md bg-amber-600 px-2.5 py-1.5 font-semibold text-white hover:bg-amber-700">
+                        Falar com o suporte
+                      </Link>
+                      <span className="text-amber-700">Tenha em maos seu e-mail e CPF para agilizar o desbloqueio.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             {loading && <p className="text-xs text-gray-500">Processando, aguarde...</p>}
           </div>
 
@@ -400,8 +423,9 @@ export function Access() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="register-photo">Foto de perfil</Label>
-                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4">
+                <Label>Foto de perfil</Label>
+                <label htmlFor="register-photo" className="cursor-pointer block">
+                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 hover:bg-gray-100 transition-colors">
                   <div className="flex items-center gap-4">
                     <div className="h-16 w-16 overflow-hidden rounded-full bg-white ring-2 ring-white shadow-sm flex items-center justify-center">
                       {registerData.foto ? (
@@ -411,11 +435,13 @@ export function Access() {
                       )}
                     </div>
                     <div className="flex-1">
-                      <Input id="register-photo" type="file" accept="image/*" onChange={handleProfilePhotoChange} />
-                      <p className="mt-2 text-xs text-gray-500">Essa foto aparecera no seu perfil e nos orcamentos enviados.</p>
+                      <p className="text-sm font-medium text-blue-600 mb-1">Clique para selecionar uma foto</p>
+                      <p className="text-xs text-gray-500">Essa foto aparecerá no seu perfil e nos orçamentos enviados.</p>
                     </div>
                   </div>
                 </div>
+                </label>
+                <Input id="register-photo" type="file" accept="image/*" onChange={handleProfilePhotoChange} className="hidden" />
               </div>
 
               <div className="space-y-1.5">
@@ -527,22 +553,23 @@ export function Access() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="register-state">Estado (UF)</Label>
-                  <Input
+                  <select
                     id="register-state"
-                    type="text"
-                    placeholder="SP"
-                    maxLength={2}
                     value={registerData.estado}
                     aria-invalid={!!registerErrors.estado}
                     onChange={(e) => {
                       clearRegisterFieldError("estado");
-                      setRegisterData((prev) => ({
-                        ...prev,
-                        estado: e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase(),
-                      }));
+                      setRegisterData((prev) => ({ ...prev, estado: e.target.value }));
                     }}
-                    required
-                  />
+                    className="border-input bg-input-background focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive flex h-9 w-full rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-[3px]"
+                  >
+                    <option value="">Selecione o estado</option>
+                    {["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"].map((uf) => (
+                      <option key={uf} value={uf}>
+                        {uf}
+                      </option>
+                    ))}
+                  </select>
                   {registerErrors.estado && <p className="text-xs text-red-600">{registerErrors.estado}</p>}
                 </div>
               </div>

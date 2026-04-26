@@ -22,7 +22,6 @@ import com.fatec.demo.model.Avaliacao;
 import com.fatec.demo.model.Categoria;
 import com.fatec.demo.model.Pedido;
 import com.fatec.demo.model.Usuario;
-import com.fatec.demo.model.enums.TipoUsuario;
 import com.fatec.demo.repository.AvaliacaoRepository;
 import com.fatec.demo.repository.CategoriaRepository;
 import com.fatec.demo.repository.PedidoRepository;
@@ -50,7 +49,15 @@ public class AdminController {
     private boolean isAdmin(Long adminId) {
         if (adminId == null || adminId <= 0) return false;
         return usuarioRepository.findById(adminId)
-                .map(u -> u.getTipoEnum() == TipoUsuario.ADMIN)
+                .map(Usuario::isAdmin)
+                .orElse(false);
+    }
+
+    /** Verifica se o adminId fornecido é ADMIN PRINCIPAL (status 11) */
+    private boolean isAdminPrincipal(Long adminId) {
+        if (adminId == null || adminId <= 0) return false;
+        return usuarioRepository.findById(adminId)
+                .map(Usuario::isAdminPrincipal)
                 .orElse(false);
     }
 
@@ -68,10 +75,10 @@ public class AdminController {
             stats.put("totalCategorias", categoriaRepository.count());
 
                 long totalClientes = usuarioRepository.findAll().stream()
-                    .filter(u -> u.getTipoEnum() == TipoUsuario.CLIENTE)
+                    .filter(u -> u.getStatus() != null && u.getStatus() == Usuario.STATUS_CLIENTE)
                     .count();
                 long totalPrestadores = usuarioRepository.findAll().stream()
-                    .filter(u -> u.getTipoEnum() == TipoUsuario.PRESTADOR)
+                    .filter(u -> u.getStatus() != null && u.getStatus() == Usuario.STATUS_PRESTADOR)
                     .count();
 
             stats.put("totalClientes", totalClientes);
@@ -105,7 +112,32 @@ public class AdminController {
         if (id.equals(adminId)) return ResponseEntity.badRequest().body("Não é possível desativar a própria conta");
 
         return usuarioRepository.findById(id).map(u -> {
+            if (u.isAdmin() && !isAdminPrincipal(adminId)) {
+                return ResponseEntity.status(403).body("Somente ADMIN PRINCIPAL pode bloquear admins");
+            }
             u.setAtivo(!u.isAtivo());
+            usuarioRepository.save(u);
+            u.setSenha(null);
+            return ResponseEntity.ok(u);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/usuario/{id}/status")
+    public ResponseEntity<?> updateStatus(@PathVariable Long id, @RequestParam Long adminId, @RequestBody Map<String, Integer> payload) {
+        if (!isAdminPrincipal(adminId)) return ResponseEntity.status(403).body("Somente ADMIN PRINCIPAL pode alterar status");
+        if (id.equals(adminId)) return ResponseEntity.badRequest().body("Não é possível alterar o próprio status");
+
+        Integer status = payload.get("status");
+        if (status == null) return ResponseEntity.badRequest().body("Status é obrigatório");
+
+        boolean statusValido = status == Usuario.STATUS_PRESTADOR
+                || status == Usuario.STATUS_CLIENTE
+                || status == Usuario.STATUS_ADMIN
+                || status == Usuario.STATUS_ADMIN_PRINCIPAL;
+        if (!statusValido) return ResponseEntity.badRequest().body("Status inválido");
+
+        return usuarioRepository.findById(id).map(u -> {
+            u.setStatus(status);
             usuarioRepository.save(u);
             u.setSenha(null);
             return ResponseEntity.ok(u);
@@ -117,7 +149,12 @@ public class AdminController {
         if (!isAdmin(adminId)) return ResponseEntity.status(403).body("Acesso negado");
         if (id.equals(adminId)) return ResponseEntity.badRequest().body("Não é possível excluir a própria conta");
 
-        if (!usuarioRepository.existsById(id)) return ResponseEntity.notFound().build();
+        Usuario alvo = usuarioRepository.findById(id).orElse(null);
+        if (alvo == null) return ResponseEntity.notFound().build();
+        if (alvo.isAdmin() && !isAdminPrincipal(adminId)) {
+            return ResponseEntity.status(403).body("Somente ADMIN PRINCIPAL pode excluir admins");
+        }
+
         try {
             usuarioRepository.deleteById(id);
             return ResponseEntity.ok("Usuário excluído");

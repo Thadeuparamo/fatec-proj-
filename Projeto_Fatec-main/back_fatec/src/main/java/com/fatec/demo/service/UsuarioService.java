@@ -15,6 +15,8 @@ import com.fatec.demo.repository.ClienteRepository;
 import com.fatec.demo.repository.PrestadorRepository;
 import com.fatec.demo.repository.UsuarioRepository;
 
+import jakarta.annotation.PostConstruct;
+
 @Service
 public class UsuarioService {
 
@@ -28,6 +30,53 @@ public class UsuarioService {
 
     @Autowired
     private PrestadorRepository prestadorRepository;
+
+    @PostConstruct
+    public void normalizeUserStatusColumn() {
+        try {
+            List<Usuario> usuarios = repository.findAll();
+            boolean changed = false;
+
+            for (Usuario u : usuarios) {
+                Integer status = u.getStatus();
+                Integer expectedFromTipo = mapTipoToStatus(u.getTipo());
+
+                if (status == null) {
+                    u.setStatus(expectedFromTipo);
+                    changed = true;
+                    continue;
+                }
+
+                // Keep ADMIN PRINCIPAL as-is; for others, align tipo and status.
+                if (status != Usuario.STATUS_ADMIN_PRINCIPAL) {
+                    String tipoAtual = u.getTipo() == null ? "" : u.getTipo().trim().toLowerCase();
+                    if ((status == Usuario.STATUS_PRESTADOR && !"prestador".equals(tipoAtual))
+                        || (status == Usuario.STATUS_CLIENTE && !"cliente".equals(tipoAtual))
+                        || (status == Usuario.STATUS_ADMIN && !"admin".equals(tipoAtual))) {
+                        u.setStatus(status);
+                        changed = true;
+                    }
+                }
+            }
+
+            if (changed) {
+                repository.saveAll(usuarios);
+                logger.info("Status dos usuarios normalizado com sucesso.");
+            }
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Falha ao normalizar coluna status de usuarios", e);
+        }
+    }
+
+    private Integer mapTipoToStatus(String tipo) {
+        String normalized = tipo == null ? "" : tipo.trim().toLowerCase();
+        return switch (normalized) {
+            case "prestador" -> Usuario.STATUS_PRESTADOR;
+            case "admin" -> Usuario.STATUS_ADMIN;
+            case "cliente" -> Usuario.STATUS_CLIENTE;
+            default -> Usuario.STATUS_CLIENTE;
+        };
+    }
     
     public List<Usuario> findAll(){
         try {
@@ -166,6 +215,7 @@ public class UsuarioService {
                 cliente.setBio(usuario.getBio());
                 cliente.setFoto(usuario.getFoto());
                 cliente.setAtivo(true);
+                cliente.setStatus(Usuario.STATUS_CLIENTE);
                 cliente.setApelido(usuario.getNome().trim());
                 saved = clienteRepository.save(cliente);
             } else {
@@ -183,6 +233,7 @@ public class UsuarioService {
                 prestador.setBio(usuario.getBio());
                 prestador.setFoto(usuario.getFoto());
                 prestador.setAtivo(true);
+                prestador.setStatus(Usuario.STATUS_PRESTADOR);
                 prestador.setNomeProfissional(usuario.getNome().trim());
                 prestador.setEspecialidade("Serviços gerais");
                 prestador.setDescricao(usuario.getBio());
@@ -212,10 +263,18 @@ public class UsuarioService {
 
             String emailNormalizado = email.trim().toLowerCase();
 
-            Usuario user = repository.findByEmail(emailNormalizado)
-                .filter(u -> u.isAtivo())
-                .filter(u -> u.getSenha().equals(hashSha256(senha)))
-                .orElse(null);
+            Usuario usuario = repository.findByEmail(emailNormalizado).orElse(null);
+            if (usuario == null) {
+                logger.warning("Tentativa de login falhou: " + emailNormalizado);
+                return null;
+            }
+
+            if (!usuario.isAtivo()) {
+                logger.warning("Tentativa de login com usuario bloqueado: " + emailNormalizado);
+                throw new IllegalArgumentException("Usuario bloqueado. Contate o administrador.");
+            }
+
+            Usuario user = passwordMatches(senha, usuario.getSenha()) ? usuario : null;
 
             if (user != null) {
                 logger.info("Login bem-sucedido: " + emailNormalizado);
@@ -351,6 +410,22 @@ public class UsuarioService {
         } catch (Exception e) {
             throw new RuntimeException("Erro ao gerar hash", e);
         }
+    }
+
+    private boolean passwordMatches(String senhaInformada, String senhaBanco) {
+        if (senhaInformada == null || senhaInformada.isBlank()) {
+            return false;
+        }
+        if (senhaBanco == null || senhaBanco.isBlank()) {
+            return false;
+        }
+
+        // Compatibilidade com dados legados: alguns usuários foram persistidos em texto puro.
+        if (senhaBanco.matches("^[a-f0-9]{64}$")) {
+            return senhaBanco.equals(hashSha256(senhaInformada));
+        }
+
+        return senhaBanco.equals(senhaInformada);
     }
 
     @Transactional

@@ -7,7 +7,6 @@ import {
   LogOut,
   Menu,
   MessageSquare,
-  RefreshCw,
   Send,
   Star,
   TrendingUp,
@@ -197,16 +196,6 @@ export function DashboardPrestadorLayout() {
                 <span className="truncate">{user.nome}</span>
               </div>
 
-              <Link to="/dashboard">
-                <Button
-                  variant="outline"
-                  className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                >
-                  <RefreshCw size={16} className="mr-2" />
-                  Area do Cliente
-                </Button>
-              </Link>
-
               <Link to="/projeto-ambiental">
                 <Button className="hidden bg-orange-500 text-white shadow-md hover:bg-orange-600 sm:flex">
                   <Leaf size={16} className="mr-2" />
@@ -228,15 +217,6 @@ export function DashboardPrestadorLayout() {
           className={`${sidebarOpen ? "translate-x-0" : "-translate-x-full"} fixed inset-y-0 left-0 z-40 mt-[4.5rem] w-72 border-r border-orange-100 bg-white/95 shadow-[8px_0_30px_-24px_rgba(17,60,110,0.7)] transition-transform duration-300 ease-in-out lg:static lg:mt-0 lg:translate-x-0`}
         >
           <nav className="h-[calc(100vh-72px)] space-y-1 overflow-y-auto p-4">
-            <Link to="/dashboard" onClick={() => setSidebarOpen(false)}>
-              <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3 transition-all hover:border-blue-400">
-                <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
-                  <RefreshCw size={16} />
-                  <span>Trocar para Area Cliente</span>
-                </div>
-              </div>
-            </Link>
-
             {navItemsWithBadge.map((item) => (
               <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)}>
                 <div

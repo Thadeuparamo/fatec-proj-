@@ -44,6 +44,7 @@ export interface Usuario {
   nome: string;
   email: string;
   tipo: string;
+  status?: number;
   cpf?: string;
   telefone?: string;
   endereco?: string;

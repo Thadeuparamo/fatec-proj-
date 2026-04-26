@@ -231,11 +231,19 @@ export function Orcamentos() {
   };
 
   const handleOpenConversation = async (proposal: (typeof proposals)[number]) => {
+    if (!user?.id) {
+      setFeedback({
+        type: "error",
+        message: "Faca login novamente para iniciar a conversa.",
+      });
+      return;
+    }
+
     try {
       const conversation = await ensureConversation({
         orderId: selectedOrder.id,
         serviceTitle: selectedOrder.title,
-        clientUserId: selectedOrder.clientUserId,
+        clientUserId: user.id,
         providerUserId: proposal.providerUserId,
         clientName: selectedOrder.clientName,
         providerName: proposal.providerName,
